@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document AI Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Custom styles for better UI/UX */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        #chat-messages {
+            scroll-behavior: smooth;
+        }
+        .message {
+            max-width: 85%;
+        }
+        .message.user {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+        }
+        .message.bot {
+            background-color: #ffffff;
+            align-self: flex-start;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        #pdf-view canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 100%; /* Make canvas responsive */
+            height: auto;
+        }
+        .highlight {
+            background-color: rgba(255, 255, 0, 0.4);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10">
+        <div class="flex items-center space-x-3">
+            <i class="fas fa-robot text-2xl text-blue-600"></i>
+            <div>
+                <h1 class="text-xl font-bold text-gray-800">Document AI Assistant</h1>
+                <p class="text-xs text-gray-500">Dibuat Oleh: IR. R. AGUNG EKO PITONO, MT 12/8/2025</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+             <label for="pdf-upload" class="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+                <i class="fas fa-file-pdf"></i>
+                <span>Unggah PDF</span>
+            </label>
+            <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- PDF Viewer Panel -->
+        <div id="pdf-container" class="w-full md:w-1/2 h-1/2 md:h-full flex flex-col bg-gray-100 p-4 overflow-auto">
+            <div id="pdf-controls" class="flex justify-between items-center mb-2 p-2 bg-white rounded-lg shadow">
+                <button id="prev-page" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"><i class="fas fa-arrow-left"></i></button>
+                <span id="page-num" class="text-sm font-medium"></span>
+                <button id="next-page" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"><i class="fas fa-arrow-right"></i></button>
+            </div>
+            <div id="pdf-view" class="flex-1 flex justify-center items-start">
+                <div id="upload-placeholder" class="text-center text-gray-500 mt-16">
+                    <i class="fas fa-file-arrow-up text-6xl mb-4"></i>
+                    <p class="font-semibold">Silakan unggah file PDF untuk memulai</p>
+                    <p class="text-sm">Interaksi dengan dokumen Anda akan dimulai di sini.</p>
+                </div>
+                <canvas id="pdf-canvas" class="hidden"></canvas>
+            </div>
+        </div>
+
+        <!-- Chat Panel -->
+        <div class="w-full md:w-1/2 h-1/2 md:h-full flex flex-col bg-white border-l border-gray-200">
+            <div id="chat-messages" class="flex-1 p-6 overflow-y-auto flex flex-col space-y-4">
+                <!-- Chat messages will be appended here -->
+                <div class="message bot p-3 rounded-lg shadow-sm">
+                    <p class="text-sm">Halo! Saya adalah asisten AI Anda. Unggah sebuah PDF, lalu ajukan pertanyaan tentang isinya. Anda juga bisa menggunakan ikon mikrofon untuk bertanya dengan suara.</p>
+                </div>
+            </div>
+            <div id="chat-input-container" class="p-4 border-t border-gray-200 bg-gray-50">
+                <div class="flex items-center bg-white border border-gray-300 rounded-lg shadow-sm p-2">
+                    <input type="text" id="chat-input" class="flex-1 w-full border-none focus:ring-0 text-sm" placeholder="Ketik pertanyaan atau gunakan suara..." disabled>
+                    <button id="record-btn" class="text-gray-500 hover:text-blue-600 p-2 disabled:opacity-50" disabled><i class="fas fa-microphone text-xl"></i></button>
+                    <button id="send-btn" class="bg-blue-600 text-white rounded-lg px-4 py-2 ml-2 hover:bg-blue-700 transition-colors disabled:opacity-50" disabled><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for loading/processing -->
+    <div id="loading-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl flex items-center space-x-4">
+            <div class="loader"></div>
+            <span id="loading-text" class="text-gray-700 font-medium">Memproses PDF...</span>
+        </div>
+    </div>
+
+<script>
+// --- Global State and Configuration ---
+const pdfUpload = document.getElementById('pdf-upload');
+const pdfContainer = document.getElementById('pdf-container');
+const pdfView = document.getElementById('pdf-view');
+const pdfCanvas = document.getElementById('pdf-canvas');
+const uploadPlaceholder = document.getElementById('upload-placeholder');
+const pageNumDisplay = document.getElementById('page-num');
+const prevPageBtn = document.getElementById('prev-page');
+const nextPageBtn = document.getElementById('next-page');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+const recordBtn = document.getElementById('record-btn');
+const chatMessages = document.getElementById('chat-messages');
+const loadingModal = document.getElementById('loading-modal');
+const loadingText = document.getElementById('loading-text');
+
+let pdfDoc = null;
+let pageNum = 1;
+let pageRendering = false;
+let pageNumPending = null;
+let pdfTextContent = []; // Array to store text from all pages
+let chatHistory = [];
+let pageLabels = null; // To store page label mapping
+
+// --- PDF.js Worker Configuration ---
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+
+// --- Speech Recognition (STT) ---
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        chatInput.value = transcript;
+    };
+
+    recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        let errorMessage = 'Maaf, terjadi kesalahan saat mencoba merekam suara.';
+        switch (event.error) {
+            case 'not-allowed':
+                errorMessage = 'Akses ke mikrofon ditolak. Silakan izinkan akses mikrofon di pengaturan browser Anda (biasanya ikon gembok atau kamera di bilah alamat) lalu segarkan halaman dan coba lagi.';
+                break;
+            case 'no-speech':
+                errorMessage = 'Tidak ada suara yang terdeteksi. Pastikan mikrofon Anda berfungsi dan coba lagi.';
+                break;
+            case 'audio-capture':
+                errorMessage = 'Mikrofon tidak ditemukan atau bermasalah. Periksa pengaturan audio di komputer Anda.';
+                break;
+            case 'network':
+                 errorMessage = 'Terjadi masalah jaringan saat mencoba menggunakan pengenalan suara. Coba lagi nanti.';
+                 break;
+        }
+        addMessage('bot', errorMessage);
+    };
+    
+    recognition.onend = () => {
+        recordBtn.classList.remove('text-red-500', 'animate-pulse');
+        recordBtn.disabled = false;
+    };
+} else {
+    console.warn('Speech Recognition API not supported in this browser.');
+    recordBtn.style.display = 'none';
+    addMessage('bot', 'Browser Anda tidak mendukung fitur input suara. Silakan gunakan Google Chrome versi terbaru.');
+}
+
+
+// --- Core Functions ---
+
+/**
+ * Renders a specific page of the PDF onto the canvas, fitting it to the container width.
+ * @param {number} num The page number to render.
+ */
+function renderPage(num) {
+    pageRendering = true;
+    pdfDoc.getPage(num).then((page) => {
+        const canvasContext = pdfCanvas.getContext('2d');
+        const containerWidth = pdfView.clientWidth;
+
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        
+        const scale = containerWidth / unscaledViewport.width;
+        const viewport = page.getViewport({ scale: scale });
+
+        pdfCanvas.height = viewport.height;
+        pdfCanvas.width = viewport.width;
+
+        const renderContext = {
+            canvasContext: canvasContext,
+            viewport: viewport
+        };
+        const renderTask = page.render(renderContext);
+
+        renderTask.promise.then(() => {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                renderPage(pageNumPending);
+                pageNumPending = null;
+            }
+        });
+    });
+
+    const currentLabel = pageLabels ? pageLabels[num - 1] : num;
+    pageNumDisplay.textContent = `Halaman ${currentLabel}`;
+    updateNavButtons();
+}
+
+/**
+ * Queues a page to be rendered if another is already in progress.
+ * @param {number} num The page number to queue.
+ */
+function queueRenderPage(num) {
+    if (pageRendering) {
+        pageNumPending = num;
+    } else {
+        renderPage(num);
+    }
+}
+
+/**
+ * Handles PDF file upload and processing.
+ * @param {Event} e The file input change event.
+ */
+async function handlePdfUpload(e) {
+    const file = e.target.files[0];
+    if (!file || file.type !== 'application/pdf') return;
+
+    // **NEW: Reset conversation on new file upload**
+    chatMessages.innerHTML = ''; // Clear UI
+    chatHistory = []; // Clear internal memory
+
+    // Add the welcome message back
+    const welcomeMessage = document.createElement('div');
+    welcomeMessage.className = 'message bot p-3 rounded-lg shadow-sm';
+    welcomeMessage.innerHTML = `<p class="text-sm">Halo! Saya adalah asisten AI Anda. Unggah sebuah PDF, lalu ajukan pertanyaan tentang isinya. Anda juga bisa menggunakan ikon mikrofon untuk bertanya dengan suara.</p>`;
+    chatMessages.appendChild(welcomeMessage);
+    // **End of reset logic**
+
+    showLoading('Membaca file PDF...');
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        try {
+            pdfDoc = await pdfjsLib.getDocument({ data: typedarray }).promise;
+            pageLabels = await pdfDoc.getPageLabels();
+            
+            showLoading(`Mengekstrak teks dari ${pdfDoc.numPages} halaman...`);
+            
+            pdfTextContent = [];
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                const label = pageLabels ? pageLabels[i - 1] : i.toString();
+                pdfTextContent.push({ page: i, label: label, content: pageText });
+            }
+            
+            // Re-initialize chat history for the new document
+            chatHistory = [{
+                role: "user",
+                parts: [{ text: `Ini adalah isi dari sebuah dokumen PDF. Saya akan mengajukan pertanyaan tentang dokumen ini. Jawablah pertanyaan saya HANYA berdasarkan konteks yang saya berikan. Jika jawabannya tidak ada dalam konteks, katakan bahwa Anda tidak dapat menemukan informasinya di dalam dokumen. Selalu berikan jawaban dalam Bahasa Indonesia. Konteks Dokumen: ${pdfTextContent.map(p => `[Halaman ${p.label}] ${p.content}`).join('\n\n')}` }]
+            }, {
+                role: "model",
+                parts: [{ text: "Baik, saya telah membaca dokumen tersebut. Silakan ajukan pertanyaan Anda." }]
+            }];
+
+
+            uploadPlaceholder.classList.add('hidden');
+            pdfCanvas.classList.remove('hidden');
+            pageNum = 1;
+            renderPage(pageNum);
+            enableChat();
+            addMessage('bot', 'Dokumen berhasil diproses. Sekarang Anda bisa bertanya.');
+        } catch (error) {
+            console.error('Error parsing PDF:', error);
+            addMessage('bot', 'Maaf, terjadi kesalahan saat memproses PDF. Coba file lain.');
+        } finally {
+            hideLoading();
+        }
+    };
+    fileReader.readAsArrayBuffer(file);
+}
+
+/**
+ * Handles sending a chat message, getting a response, and updating the UI.
+ */
+async function handleSendMessage() {
+    const userInput = chatInput.value.trim();
+    if (!userInput) return;
+
+    addMessage('user', userInput);
+    chatInput.value = '';
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    showLoading('AI sedang berpikir...');
+
+    try {
+        const relevantContext = findRelevantContext(userInput, pdfTextContent);
+        
+        const prompt = `Anda adalah asisten dokumen ahli yang cerdas dan analitis. Tugas Anda adalah menjadi partner diskusi bagi pengguna.
+
+        Ikuti alur kerja ini dengan ketat:
+        1.  **Cari Jawaban Langsung:** Pertama, cari jawaban yang paling akurat dan langsung untuk pertanyaan pengguna HANYA berdasarkan teks dari PDF yang diberikan.
+        2.  **Jika Jawaban Ditemukan:**
+            -   Buat ringkasan atau interpretasi yang lengkap dari jawaban tersebut.
+            -   Identifikasi LABEL HALAMAN spesifik tempat informasi itu berada.
+            -   Balas dengan format JSON berikut:
+                {
+                  "type": "direct",
+                  "summary": "Ringkasan lengkap Anda dari dokumen ada di sini.",
+                  "pageLabel": "label_halaman_yang_ditemukan"
+                }
+        3.  **Jika Jawaban TIDAK Ditemukan:**
+            -   Nyatakan dengan jelas bahwa informasi tersebut tidak ditemukan secara eksplisit di dalam dokumen.
+            -   **Kemudian, berikan analisis atau inferensi logis** berdasarkan pengetahuan umum Anda sebagai model AI. Bingkai jawaban ini sebagai analisis tambahan. Contoh: "Namun, secara umum, kesulitan yang mungkin dihadapi dalam penerapan dokumen seperti ini adalah..."
+            -   Balas dengan format JSON berikut:
+                {
+                  "type": "inferred",
+                  "summary": "Pernyataan bahwa info tidak ada, diikuti dengan analisis cerdas Anda.",
+                  "pageLabel": null
+                }
+
+        ---
+        KONTEKS DOKUMEN (Teks ini dari halaman dengan label "${relevantContext.label}"):
+        "${relevantContext.content}"
+        ---
+        PERTANYAAN PENGGUNA:
+        "${userInput}"
+        ---
+        RESPONS JSON ANDA:`;
+
+        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        
+        const payload = { contents: chatHistory };
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const result = await response.json();
+        const botResponseText = result.candidates[0].content.parts[0].text;
+        
+        let botAnswer = '';
+        let sourcePageIdx = null;
+        let responseType = 'direct';
+
+        try {
+            const jsonString = botResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const answerData = JSON.parse(jsonString);
+            botAnswer = answerData.summary || "Maaf, saya tidak dapat menemukan jawaban yang spesifik.";
+            const sourcePageLabel = answerData.pageLabel;
+            responseType = answerData.type || 'direct';
+
+            if (responseType === 'direct' && sourcePageLabel && pageLabels) {
+                const normalizedSourceLabel = sourcePageLabel.replace(/[\s-]+/g, '').toLowerCase();
+                const foundIndex = pageLabels.findIndex(label => label.replace(/[\s-]+/g, '').toLowerCase() === normalizedSourceLabel);
+                
+                if (foundIndex !== -1) {
+                    sourcePageIdx = foundIndex + 1;
+                }
+            }
+            if (!sourcePageIdx && responseType === 'direct') {
+                sourcePageIdx = relevantContext.page;
+            }
+
+        } catch (parseError) {
+            console.error("Gagal mem-parsing respons JSON dari AI:", parseError);
+            console.error("Respons mentah AI:", botResponseText);
+            botAnswer = botResponseText; 
+            sourcePageIdx = relevantContext.page;
+        }
+        
+        chatHistory.push({ role: "model", parts: [{ text: botResponseText }] });
+
+        addMessage('bot', botAnswer, sourcePageIdx);
+
+    } catch (error) {
+        console.error('Error with Gemini API:', error);
+        addMessage('bot', 'Maaf, saya sedang mengalami gangguan. Coba lagi nanti.');
+    } finally {
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+        hideLoading();
+    }
+}
+
+/**
+ * Finds the most relevant text chunk from the PDF based on the user's query.
+ */
+function findRelevantContext(query, textChunks) {
+    const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+    let bestMatch = { page: 1, label: '1', content: textChunks[0]?.content || "", score: 0 };
+
+    textChunks.forEach(chunk => {
+        const chunkWords = new Set(chunk.content.toLowerCase().split(/\s+/));
+        const intersection = new Set([...queryWords].filter(x => chunkWords.has(x)));
+        const score = intersection.size;
+
+        if (score > bestMatch.score) {
+            bestMatch = { page: chunk.page, label: chunk.label, content: chunk.content, score: score };
+        }
+    });
+
+    if (bestMatch.score === 0) {
+        return { 
+            page: 1, 
+            label: '1',
+            content: textChunks.slice(0, 5).map(c => c.content).join(' ')
+        };
+    }
+    
+    return bestMatch;
+}
+
+
+// --- UI Helper Functions ---
+
+function showLoading(text) {
+    loadingText.textContent = text;
+    loadingModal.classList.remove('hidden');
+}
+
+function hideLoading() {
+    loadingModal.classList.add('hidden');
+}
+
+function enableChat() {
+    chatInput.disabled = false;
+    sendBtn.disabled = false;
+    recordBtn.disabled = false;
+}
+
+function updateNavButtons() {
+    prevPageBtn.disabled = (pageNum <= 1);
+    nextPageBtn.disabled = (pageNum >= pdfDoc.numPages);
+}
+
+/**
+ * Adds a message to the chat window.
+ * @param {string} sender 'user' or 'bot'.
+ * @param {string} text The message content.
+ * @param {number|null} sourcePageIdx The page index for navigation.
+ */
+function addMessage(sender, text, sourcePageIdx = null) {
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${sender} p-3 rounded-lg shadow-sm w-fit`;
+
+    const textElement = document.createElement('p');
+    textElement.className = 'text-sm';
+    textElement.textContent = text;
+    messageElement.appendChild(textElement);
+
+    if (sender === 'bot') {
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'flex items-center space-x-4 mt-2';
+
+        const speakButton = document.createElement('button');
+        speakButton.className = 'text-xs text-gray-500 hover:text-blue-600 flex items-center';
+        speakButton.innerHTML = `<i class="fas fa-volume-high mr-1"></i> Dengarkan`;
+        speakButton.onclick = () => speakText(text);
+        buttonContainer.appendChild(speakButton);
+
+        if (sourcePageIdx) {
+            pageNum = sourcePageIdx;
+            queueRenderPage(pageNum);
+            
+            const displayLabel = pageLabels ? (pageLabels[sourcePageIdx - 1] || sourcePageIdx) : sourcePageIdx;
+            const sourceButton = document.createElement('button');
+            sourceButton.className = 'text-xs text-blue-600 hover:underline flex items-center';
+            sourceButton.innerHTML = `<i class="fas fa-map-marker-alt mr-1"></i>Sumber: Halaman ${displayLabel}`;
+            sourceButton.onclick = () => {
+                pageNum = sourcePageIdx;
+                queueRenderPage(pageNum);
+            };
+            buttonContainer.appendChild(sourceButton);
+        }
+        messageElement.appendChild(buttonContainer);
+    }
+
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/**
+ * Speaks the given text using the browser's TTS API.
+ * @param {string} text The text to speak.
+ */
+function speakText(text) {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'id-ID';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
+// --- Event Listeners ---
+
+pdfUpload.addEventListener('change', handlePdfUpload);
+sendBtn.addEventListener('click', handleSendMessage);
+chatInput.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+        handleSendMessage();
+    }
+});
+
+recordBtn.addEventListener('click', () => {
+    if (recognition) {
+        try {
+            recordBtn.classList.add('text-red-500', 'animate-pulse');
+            recordBtn.disabled = true;
+            recognition.start();
+        } catch(e) {
+            recordBtn.classList.remove('text-red-500', 'animate-pulse');
+            recordBtn.disabled = false;
+            addMessage('bot', 'Gagal memulai perekaman. Coba segarkan halaman.');
+            console.error("Error starting recognition:", e);
+        }
+    }
+});
+
+prevPageBtn.addEventListener('click', () => {
+    if (pageNum <= 1) return;
+    pageNum--;
+    queueRenderPage(pageNum);
+});
+
+nextPageBtn.addEventListener('click', () => {
+    if (pageNum >= pdfDoc.numPages) return;
+    pageNum++;
+    queueRenderPage(pageNum);
+});
+
+window.addEventListener('resize', () => {
+    if (pdfDoc && !pageRendering) {
+        clearTimeout(window.resizeTimeout);
+        window.resizeTimeout = setTimeout(() => {
+            queueRenderPage(pageNum);
+        }, 250);
+    }
+});
+
+</script>
+</body>
+</html>
