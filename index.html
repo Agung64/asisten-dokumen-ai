@@ -159,6 +159,9 @@ let pdfTextContent = []; // Array to store text from all pages
 let chatHistory = [];
 let pageLabels = null; // To store page label mapping
 
+// **PENTING: Masukkan Kunci API Anda di sini**
+const GEMINI_API_KEY = "AIzaSyBwClQ-8dcP58zllVlUkYCF-pBUj3UgZaI";
+
 // --- PDF.js Worker Configuration ---
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
 
@@ -268,16 +271,13 @@ async function handlePdfUpload(e) {
     const file = e.target.files[0];
     if (!file || file.type !== 'application/pdf') return;
 
-    // **NEW: Reset conversation on new file upload**
-    chatMessages.innerHTML = ''; // Clear UI
-    chatHistory = []; // Clear internal memory
+    chatMessages.innerHTML = '';
+    chatHistory = [];
 
-    // Add the welcome message back
     const welcomeMessage = document.createElement('div');
     welcomeMessage.className = 'message bot p-3 rounded-lg shadow-sm';
     welcomeMessage.innerHTML = `<p class="text-sm">Halo! Saya adalah asisten AI Anda. Unggah sebuah PDF, lalu ajukan pertanyaan tentang isinya. Anda juga bisa menggunakan ikon mikrofon untuk bertanya dengan suara.</p>`;
     chatMessages.appendChild(welcomeMessage);
-    // **End of reset logic**
 
     showLoading('Membaca file PDF...');
     const fileReader = new FileReader();
@@ -298,7 +298,6 @@ async function handlePdfUpload(e) {
                 pdfTextContent.push({ page: i, label: label, content: pageText });
             }
             
-            // Re-initialize chat history for the new document
             chatHistory = [{
                 role: "user",
                 parts: [{ text: `Ini adalah isi dari sebuah dokumen PDF. Saya akan mengajukan pertanyaan tentang dokumen ini. Jawablah pertanyaan saya HANYA berdasarkan konteks yang saya berikan. Jika jawabannya tidak ada dalam konteks, katakan bahwa Anda tidak dapat menemukan informasinya di dalam dokumen. Selalu berikan jawaban dalam Bahasa Indonesia. Konteks Dokumen: ${pdfTextContent.map(p => `[Halaman ${p.label}] ${p.content}`).join('\n\n')}` }]
@@ -328,6 +327,11 @@ async function handlePdfUpload(e) {
  * Handles sending a chat message, getting a response, and updating the UI.
  */
 async function handleSendMessage() {
+    if (GEMINI_API_KEY === "MASUKKAN_KUNCI_API_ANDA_DI_SINI") {
+        addMessage('bot', 'Kesalahan Konfigurasi: Kunci API Gemini belum dimasukkan. Silakan edit file index.html dan masukkan kunci API Anda.');
+        return;
+    }
+    
     const userInput = chatInput.value.trim();
     if (!userInput) return;
 
@@ -374,8 +378,7 @@ async function handleSendMessage() {
 
         chatHistory.push({ role: "user", parts: [{ text: prompt }] });
         
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
         
         const payload = { contents: chatHistory };
 
@@ -597,4 +600,3 @@ window.addEventListener('resize', () => {
 </script>
 </body>
 </html>
-
