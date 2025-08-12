@@ -344,22 +344,23 @@ async function handleSendMessage() {
     try {
         const relevantContext = findRelevantContext(userInput, pdfTextContent);
         
+        // **UPDATED: Stronger formatting instructions**
         const prompt = `Anda adalah asisten dokumen ahli yang cerdas dan analitis. Tugas Anda adalah menjadi partner diskusi bagi pengguna.
 
         Ikuti alur kerja ini dengan ketat:
         1.  **Cari Jawaban Langsung:** Pertama, cari jawaban yang paling akurat dan langsung untuk pertanyaan pengguna HANYA berdasarkan teks dari PDF yang diberikan.
         2.  **Jika Jawaban Ditemukan:**
-            -   Buat ringkasan atau interpretasi yang lengkap dari jawaban tersebut.
+            -   Buat ringkasan atau interpretasi yang lengkap dari jawaban tersebut. **PENTING: Gunakan format Markdown yang benar. Gunakan strip (-) untuk daftar, JANGAN PERNAH menggunakan asteris (*).**
             -   Identifikasi LABEL HALAMAN spesifik tempat informasi itu berada.
             -   Balas dengan format JSON berikut:
                 {
                   "type": "direct",
-                  "summary": "Ringkasan lengkap Anda dari dokumen ada di sini.",
+                  "summary": "Ringkasan lengkap Anda dari dokumen ada di sini, diformat dengan benar.",
                   "pageLabel": "label_halaman_yang_ditemukan"
                 }
         3.  **Jika Jawaban TIDAK Ditemukan:**
             -   Nyatakan dengan jelas bahwa informasi tersebut tidak ditemukan secara eksplisit di dalam dokumen.
-            -   **Kemudian, berikan analisis atau inferensi logis** berdasarkan pengetahuan umum Anda sebagai model AI. Bingkai jawaban ini sebagai analisis tambahan. Contoh: "Namun, secara umum, kesulitan yang mungkin dihadapi dalam penerapan dokumen seperti ini adalah..."
+            -   **Kemudian, berikan analisis atau inferensi logis** berdasarkan pengetahuan umum Anda sebagai model AI. Bingkai jawaban ini sebagai analisis tambahan. **Gunakan format Markdown yang benar untuk analisis ini juga.**
             -   Balas dengan format JSON berikut:
                 {
                   "type": "inferred",
